@@ -80,6 +80,10 @@ def _iterate_items(
     my_visited: set[str] = visited if visited is not None else set()
     prev_page_nr: Optional[int] = None
     page_break_i = 0
+    
+    # Get all page numbers that exist in the document, sorted
+    existing_pages = sorted(doc.pages.keys()) if add_page_breaks else []
+    
     for item, _ in doc.iterate_items(
         root=node,
         with_groups=True,
@@ -104,22 +108,39 @@ def _iterate_items(
                     if isinstance(it, DocItem) and it.prov:
                         page_no = it.prov[0].page_no
                         if prev_page_nr is not None and page_no > prev_page_nr:
-                            yield _PageBreakNode(
-                                self_ref=f"#/pb/{page_break_i}",
-                                prev_page=prev_page_nr,
-                                next_page=page_no,
-                            )
+                            # Generate page breaks for all existing pages between prev_page_nr and page_no
+                            prev_page_idx = existing_pages.index(prev_page_nr) if prev_page_nr in existing_pages else -1
+                            curr_page_idx = existing_pages.index(page_no) if page_no in existing_pages else -1
+                            
+                            if prev_page_idx >= 0 and curr_page_idx >= 0:
+                                for i in range(prev_page_idx + 1, curr_page_idx + 1):
+                                    target_page = existing_pages[i]
+                                    prev_target_page = existing_pages[i-1] if i > 0 else prev_page_nr
+                                    yield _PageBreakNode(
+                                        self_ref=f"#/pb/{page_break_i}",
+                                        prev_page=prev_target_page,
+                                        next_page=target_page,
+                                    )
+                                    page_break_i += 1
                         break
             elif isinstance(item, DocItem) and item.prov:
                 page_no = item.prov[0].page_no
                 if prev_page_nr is None or page_no > prev_page_nr:
                     if prev_page_nr is not None:  # close previous range
-                        yield _PageBreakNode(
-                            self_ref=f"#/pb/{page_break_i}",
-                            prev_page=prev_page_nr,
-                            next_page=page_no,
-                        )
-                        page_break_i += 1
+                        # Generate page breaks for all existing pages between prev_page_nr and page_no
+                        prev_page_idx = existing_pages.index(prev_page_nr) if prev_page_nr in existing_pages else -1
+                        curr_page_idx = existing_pages.index(page_no) if page_no in existing_pages else -1
+                        
+                        if prev_page_idx >= 0 and curr_page_idx >= 0:
+                            for i in range(prev_page_idx + 1, curr_page_idx + 1):
+                                target_page = existing_pages[i]
+                                prev_target_page = existing_pages[i-1] if i > 0 else prev_page_nr
+                                yield _PageBreakNode(
+                                    self_ref=f"#/pb/{page_break_i}",
+                                    prev_page=prev_target_page,
+                                    next_page=target_page,
+                                )
+                                page_break_i += 1
                     prev_page_nr = page_no
         yield item
 
